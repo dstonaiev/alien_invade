@@ -1,0 +1,14 @@
+Foo north=Bar west=Baz south=Qu-ux
+Bar south=Foo west=Bee
+Baz east=Foo
+Qu-ux north=Foo
+Bee east=Bar
+Tanzi north=Alakam west=Basap south=K'en'hahh east=Pandeva
+Alakam south=Tanzi west=Kishore east=Gehvi
+Basap east=Tanzi north=Kishore
+K'en'hahh north=Tanzi east=Umper
+Kishore east=Alakam south=Basap
+Pandeva west=Tanzi south=Umper east=Tazar north=Gehvi
+Umper west=K'en'hahh north=Pandeva
+Tazar west=Pandeva
+Gehvi west=Alakam south=Pandeva
