@@ -16,7 +16,6 @@ jobs:
 
       - name: Install dependencies
         run: |
-          go get .
           go get github.com/hashicorp/go-multierror@v1.1.1
           go get github.com/stretchr/testify@v1.8.1
 
