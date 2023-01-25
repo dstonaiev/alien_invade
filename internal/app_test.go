@@ -26,9 +26,19 @@ func (suite *appSuite) SetupTest() {
 	suite.workdir, _ = os.Getwd()
 }
 
+func (suite *appSuite) TestInitAppFileCorrupted() {
+	var err error
+	suite.app, err = InitApp(suite.logger, suite.workdir+"/../test/data/corrupted.txt", mock.InitMockRandomizer())
+
+	suite.Require().EqualError(err, "1 error occurred:\n\t* failed to parse line 'Bar south=Foo we'. reason: invalid separator = position\n\n")
+}
+
 func (suite *appSuite) TestSeedAliens() {
+	var err error
 	const numOfAliens = 5
-	suite.app = InitApp(suite.logger, suite.workdir+"/../test/data/mapOK.txt", mock.InitMockRandomizer())
+	suite.app, err = InitApp(suite.logger, suite.workdir+"/../test/data/mapOK.txt", mock.InitMockRandomizer())
+
+	suite.Require().NoError(err)
 
 	suite.app.SeedAliens(uint(numOfAliens))
 
@@ -41,7 +51,12 @@ func (suite *appSuite) TestSeedAliens() {
 }
 
 func (suite *appSuite) TestWalkCitiesOK() {
-	suite.app = InitApp(suite.logger, suite.workdir+"/../test/data/mapOK.txt", mock.InitMockRandomizer())
+	var err error
+	suite.app, err = InitApp(suite.logger, suite.workdir+"/../test/data/mapOK.txt", mock.InitMockRandomizer())
+
+	suite.Require().NoError(err)
+
+	suite.app.SeedAliens(uint(10))
 
 	//city not found in map
 	shouldStop := suite.app.WalkCities()
@@ -50,8 +65,11 @@ func (suite *appSuite) TestWalkCitiesOK() {
 }
 
 func (suite *appSuite) TestWalkCitiesIsolatedOnly() {
+	var err error
 	const numOfAliens = 20
-	suite.app = InitApp(suite.logger, suite.workdir+"/../test/data/mapIsolated.txt", mock.InitMockRandomizer())
+	suite.app, err = InitApp(suite.logger, suite.workdir+"/../test/data/mapIsolated.txt", mock.InitMockRandomizer())
+
+	suite.Require().NoError(err)
 
 	suite.app.SeedAliens(uint(numOfAliens))
 
@@ -63,8 +81,12 @@ func (suite *appSuite) TestWalkCitiesIsolatedOnly() {
 }
 
 func (suite *appSuite) TestWalkCitiesAllCountersExceed() {
+	var err error
 	const numOfAliens = 10
-	suite.app = InitApp(suite.logger, suite.workdir+"/../test/data/test4.txt", mock.InitMockRandomizer())
+	suite.app, err = InitApp(suite.logger, suite.workdir+"/../test/data/mapOK.txt", mock.InitMockRandomizer())
+
+	suite.Require().NoError(err)
+
 	suite.app.SeedAliens(numOfAliens)
 
 	//init map with big counters
@@ -79,49 +101,82 @@ func (suite *appSuite) TestWalkCitiesAllCountersExceed() {
 }
 
 func (suite *appSuite) TestValidateCityMapFileOK() {
-	suite.app = InitApp(suite.logger, suite.workdir+"/../test/data/mapOK.txt", mock.InitMockRandomizer())
+	var err error
+	suite.app, err = InitApp(suite.logger, suite.workdir+"/../test/data/mapOK.txt", mock.InitMockRandomizer())
 
-	err := suite.app.ValidateCityMap()
+	suite.Require().NoError(err)
+
+	err = suite.app.ValidateCityMap()
 
 	suite.Require().NoError(err)
 }
 
 func (suite *appSuite) TestValidateCityMapFileIncomplete() {
-	suite.app = InitApp(suite.logger, suite.workdir+"/../test/data/mapOK.txt", mock.InitMockRandomizer())
+	var err error
+	suite.app, err = InitApp(suite.logger, suite.workdir+"/../test/data/mapIncomplete.txt", mock.InitMockRandomizer())
 
-	err := suite.app.ValidateCityMap()
+	suite.Require().NoError(err)
 
-	suite.Require().EqualError(err, "")
-}
+	err = suite.app.ValidateCityMap()
 
-func (suite *appSuite) TestValidateCityMapFileCorrupted() {
-	suite.app = InitApp(suite.logger, suite.workdir+"/../test/data/corrupted.txt", mock.InitMockRandomizer())
-
-	err := suite.app.ValidateCityMap()
-
-	suite.Require().EqualError(err, "")
+	suite.Require().Error(err)
 }
 
 func (suite *appSuite) TestUpdateCities() {
+	var err error
 	var buf bytes.Buffer
 	logger := log.New(&buf, "Client Log: ", log.LstdFlags)
-	suite.app = InitApp(logger, suite.workdir+"/../test/data/mapOK.txt", mock.InitMockRandomizer())
+	suite.app, err = InitApp(logger, suite.workdir+"/../test/data/mapOK.txt", mock.InitMockRandomizer())
+
+	suite.Require().NoError(err)
+
+	suite.app.cityMap["Tanzi"].AlienCome(uint(1))
+	suite.app.cityMap["Tanzi"].AlienCome(uint(5))
+	suite.app.cityMap["Tanzi"].AlienCome(uint(7))
+
+	suite.app.cityMap["Kishore"].AlienCome(uint(3))
+	suite.app.cityMap["Kishore"].AlienCome(uint(8))
+
+	suite.app.cityMap["K'en'hahh"].AlienCome(uint(2))
+
+	suite.app.cityMap["Alakam"].AlienCome(uint(9))
+	suite.app.cityMap["Alakam"].AlienCome(uint(11))
+
+	suite.app.cityMap["Pandeva"].AlienCome(uint(4))
+	suite.app.cityMap["Pandeva"].AlienCome(uint(12))
+
+	suite.app.cityMap["Basap"].AlienCome(uint(6))
+
+	suite.app.cityMap["Umper"].AlienCome(uint(10))
 
 	suite.app.UpdateCities()
-	//delete some aliens
-	//delete some cities
 
-	//check updated map
+	suite.Require().Len(suite.app.cityMap, 5)
 
-	suite.Require().Equal("", buf.String())
-}
+	_, ok := suite.app.cityMap["Kishore"]
+	suite.Require().False(ok)
 
-func (suite *appSuite) TestPrintResult() {
-	var buf bytes.Buffer
-	logger := log.New(&buf, "Client Log: ", log.LstdFlags)
-	suite.app = InitApp(logger, suite.workdir+"/../test/data/mapOK.txt", mock.InitMockRandomizer())
+	_, ok = suite.app.cityMap["Alakam"]
+	suite.Require().False(ok)
 
-	suite.app.PrintResult()
+	_, ok = suite.app.cityMap["Tanzi"]
+	suite.Require().False(ok)
 
-	suite.Require().Equal("", buf.String())
+	_, ok = suite.app.cityMap["Pandeva"]
+	suite.Require().False(ok)
+
+	c, ok := suite.app.cityMap["K'en'hahh"]
+	suite.Require().True(ok)
+	suite.Require().Len(c.Aliens, 1)
+	suite.Require().Equal(c.Aliens[0], uint(2))
+
+	c, ok = suite.app.cityMap["Basap"]
+	suite.Require().True(ok)
+	suite.Require().Len(c.Aliens, 1)
+	suite.Require().Equal(c.Aliens[0], uint(6))
+
+	c, ok = suite.app.cityMap["Umper"]
+	suite.Require().True(ok)
+	suite.Require().Len(c.Aliens, 1)
+	suite.Require().Equal(c.Aliens[0], uint(10))
 }

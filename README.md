@@ -24,3 +24,6 @@ Assumed, everyone will be killed in this case
 
 4) How big data size may be? Does multithreading approach expected or linear can work as well?
 Linear approach selected as no much heavy data operations expected in single processing, no much time gain in multithreading, however possible conflicts, "lost" aliens, which leave city and can't come to the next one because it destroyed
+
+5) May alien prefer do not move to another city?
+Assumed, yes, as an option and in case no ways to go

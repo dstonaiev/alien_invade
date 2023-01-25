@@ -19,7 +19,7 @@ const (
 	destSeparator  = "="
 )
 
-func InitApp(logger *log.Logger, mapFile string, rnd rand.Randomizer) *AlienInvasionApp {
+func InitApp(logger *log.Logger, mapFile string, rnd rand.Randomizer) (*AlienInvasionApp, error) {
 	app := &AlienInvasionApp{
 		logger:   logger,
 		cityMap:  make(map[string]*model.City),
@@ -27,8 +27,8 @@ func InitApp(logger *log.Logger, mapFile string, rnd rand.Randomizer) *AlienInva
 		alienMap: make(map[uint]int, 0),
 		rnd:      rnd,
 	}
-	app.initMap(mapFile)
-	return app
+	err := app.initMap(mapFile)
+	return app, err
 }
 
 type AlienInvasionApp struct {
@@ -40,39 +40,46 @@ type AlienInvasionApp struct {
 }
 
 func (app *AlienInvasionApp) SeedAliens(aliensNum uint) {
+	cityListLen := len(app.cityList)
 	for i := uint(1); i <= aliensNum; i++ {
 		app.alienMap[i] = 0
-		cityKey := app.cityList[app.rnd.GenInt(len(app.cityList))]
+		cityKey := app.cityList[app.rnd.GenInt(cityListLen)]
 		city := app.cityMap[cityKey]
+		//not needed to check precense as it first step and cityList fully matches to keys in cityMap at this stage (no map entries deleted yet)
 		city.AlienCome(i)
 	}
 }
 
-func (app *AlienInvasionApp) initMap(mapFile string) {
+func (app *AlienInvasionApp) initMap(mapFile string) error {
 	absPath, err := filepath.Abs(mapFile)
 	app.logger.Printf("Absolute path to map file: %s\n", absPath)
 	if err != nil {
-		app.logger.Fatalf("unable to evaluate file path %s. error %v", mapFile, err)
+		return fmt.Errorf("unable to evaluate file path %s. error %v", mapFile, err)
 	}
 	file, err := os.Open(absPath)
 	if err != nil {
-		app.logger.Fatalf("error opening file %s for city map. error %v", mapFile, err)
+		return fmt.Errorf("error opening file %s for city map. error %v", mapFile, err)
 	}
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
+	var combErr error
 	for scanner.Scan() {
 		city, err := app.addCity(scanner.Text())
 		if err != nil {
-			app.logger.Printf("Unable to parse city line, error %v", err)
+			combErr = merr.Append(combErr, err)
 		} else {
 			app.cityMap[city.Name] = city
 			app.cityList = append(app.cityList, city.Name)
 		}
 	}
+	if combErr != nil {
+		return combErr
+	}
 
 	if err := scanner.Err(); err != nil {
-		app.logger.Fatal(err)
+		return err
 	}
+	return nil
 }
 
 func (app *AlienInvasionApp) addCity(cityLine string) (*model.City, error) {
@@ -80,7 +87,7 @@ func (app *AlienInvasionApp) addCity(cityLine string) (*model.City, error) {
 	cityName := parts[0]
 	_, ok := app.cityMap[cityName]
 	if ok {
-		return nil, fmt.Errorf("city with name %s was added to map previosly. dublicate will be ignored\n", cityName)
+		return nil, fmt.Errorf("city with name %s was added to map previosly. dublicate will be ignored", cityName)
 	}
 	city := &model.City{
 		Name:        cityName,
@@ -89,11 +96,15 @@ func (app *AlienInvasionApp) addCity(cityLine string) (*model.City, error) {
 	if len(parts) > 1 {
 		for i := 1; i < len(parts); i++ {
 			sepIdx := strings.Index(parts[i], destSeparator)
-			dir, ok := model.ParseString(parts[i][:sepIdx])
-			if !ok {
-				return nil, fmt.Errorf("Invalid destination '%s' found in file", parts[i][:sepIdx])
+			if sepIdx == 4 || sepIdx == 5 { //lenght of direction words either 4 or 5
+				dir, ok := model.ParseString(parts[i][:sepIdx])
+				if !ok {
+					return nil, fmt.Errorf("invalid destination '%s' found in file", parts[i][:sepIdx])
+				}
+				city.Destination[dir] = parts[i][sepIdx+1:]
+			} else {
+				return nil, fmt.Errorf("failed to parse line '%s'. reason: invalid separator %s position", cityLine, destSeparator)
 			}
-			city.Destination[dir] = parts[i][sepIdx+1:]
 		}
 	}
 	return city, nil
@@ -108,18 +119,19 @@ func (app *AlienInvasionApp) WalkCities() bool {
 		city, ok := app.cityMap[cityKey]
 		if ok && len(city.Aliens) > 0 && len(city.Destination) > 0 {
 			noMove = false
-			keys := getDirectionKeys(city)
+
+			//singe actor zone
+			nextCityKey := city.DrawDirection(app.rnd)
 
 			alien := city.Aliens[0]
-			destNum := app.rnd.GenInt(len(keys) + 1)
-			if destNum < len(keys) {
+			if nextCityKey != cityKey {
 				//alien desided to leave city
-				nextCity := city.Destination[keys[destNum]]
-				//alien move
 				app.alienMap[alien]++
-				app.cityMap[nextCity].AlienCome(city.Aliens[0])
+				app.cityMap[nextCityKey].AlienCome(alien)
 				city.Aliens = nil
 			}
+			//end of singe actor zone
+
 			maxStepsForEveryone = maxStepsForEveryone && (app.alienMap[alien] > stepsThreshold)
 		}
 	}
@@ -133,10 +145,14 @@ func (app *AlienInvasionApp) IsEmpty() bool {
 func (app *AlienInvasionApp) ValidateCityMap() error {
 	var combErr error
 	for name, city := range app.cityMap {
-		for dest, val := range city.Destination {
-			otherCity := app.cityMap[val]
-			if otherCity == nil || otherCity.Destination[dest.GetOppos()] != name {
-				combErr = merr.Append(fmt.Errorf("Invalid file parse: city's %s destionation %s should correspond to neighbor's city %s destination %v\n", name, dest.String(), val, dest.GetOppos()))
+		for dest, cityName := range city.Destination {
+			if name == cityName {
+				combErr = merr.Append(combErr, fmt.Errorf("invalid file parse: city's %s destination %v should not point to itself", name, dest))
+			} else {
+				otherCity, ok := app.cityMap[cityName]
+				if !ok || otherCity.Destination[dest.GetOppos()] != name {
+					combErr = merr.Append(combErr, fmt.Errorf("invalid file parse: city's %s destination %v should correspond to neighbor's city %s destination %v", name, dest, cityName, dest.GetOppos()))
+				}
 			}
 		}
 	}
@@ -186,12 +202,4 @@ func (app *AlienInvasionApp) PrintResult() {
 			app.logger.Println()
 		}
 	}
-}
-
-func getDirectionKeys(city *model.City) []model.Direction {
-	keys := make([]model.Direction, 0, len(city.Destination))
-	for d := range city.Destination {
-		keys = append(keys, d)
-	}
-	return keys
 }

@@ -27,9 +27,13 @@ func init() {
 
 func main() {
 	logger := initLog(logFile)
-	app := processor.InitApp(logger, mapFile, rand.NewRandomizer())
-	if err := app.ValidateCityMap(); err != nil {
-		log.Panicf("provided file didn't pass validation, errors: %v", err)
+	app, err := processor.InitApp(logger, mapFile, rand.NewRandomizer())
+	if err != nil {
+		log.Panicf("provided map file is corrupted, errors: %v", err)
+	}
+
+	if err = app.ValidateCityMap(); err != nil {
+		log.Panicf("provided map file didn't pass validation, errors: %v", err)
 	}
 
 	if aliensNum == 0 {
@@ -72,7 +76,7 @@ func initLog(logFile string) *log.Logger {
 	absPath, err := filepath.Abs(mapFile)
 	log.Printf("Absolute path to map file: %s\n", absPath)
 	if err != nil {
-		log.Printf("unable to evaluate file path %s. error %v", mapFile, err)
+		log.Printf("unable to evaluate file path %s. error %v", logFile, err)
 		return log.New(os.Stdout, "App Log: ", log.LstdFlags)
 	}
 	file, err := os.OpenFile(absPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
