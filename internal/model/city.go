@@ -5,18 +5,16 @@ import "github.com/dstonaiev/alien_invade/internal/rand"
 type City struct {
 	// city name
 	Name string
+	//alien which want to leave city, if no aliens is 0, can't be more than one, otherwise city should be destroyed on the previous step
+	AlienOut uint
 	//alien's numbers, if more than 1 city should be destroyed with aliens on it
-	Aliens []uint
+	AliensIn []uint
 	//map value = city name
 	Destination map[Direction]string
 }
 
 func (c *City) AlienCome(alien uint) {
-	c.Aliens = append(c.Aliens, alien)
-}
-
-func (c *City) IsBattle() bool {
-	return len(c.Aliens) > 1
+	c.AliensIn = append(c.AliensIn, alien)
 }
 
 func (c *City) DrawDirection(rnd rand.Randomizer) string {

@@ -36,7 +36,7 @@ func main() {
 		log.Panicf("provided map file didn't pass validation, errors: %v", err)
 	}
 
-	if aliensNum == 0 {
+	if aliensNum == uint(0) {
 		log.Panic("No aliens were generated")
 	}
 

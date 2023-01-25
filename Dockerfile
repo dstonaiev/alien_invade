@@ -4,11 +4,13 @@ ENV GO111MODULE=on
 
 RUN apk update && apk add bash ca-certificates git gcc g++ libc-dev
 
-#RUN mkdir /aliens
+RUN go clean -modcache
+
+RUN mkdir /aliens
 
 WORKDIR /aliens
 
-#COPY . .
+COPY . .
 
 COPY data/map.txt ./
 COPY go.mod ./
@@ -16,10 +18,12 @@ COPY go.sum ./
 
 RUN go mod download
 
-COPY *.go ./
+#COPY *.go ./
 
-RUN go build cmd/main.go
+#RUN cd cmd
 
-CMD [ "./main", "-A", "1000", "-M", "/aliens/map.txt" ]
+RUN go build -ldflags="-d -s -w" -tags timetzdata -trimpath -o app ./cmd
 
-#ENTRYPOINT ["./main", "-A", "1000", "-M", "/aliens/map.txt"]
+CMD [ "./app", "-A", "1000", "-M", "/aliens/map.txt" ]
+
+#ENTRYPOINT ["./app", "-A", "1000", "-M", "/aliens/map.txt"]

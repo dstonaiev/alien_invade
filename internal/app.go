@@ -117,22 +117,17 @@ func (app *AlienInvasionApp) WalkCities() bool {
 
 	for _, cityKey := range app.cityList {
 		city, ok := app.cityMap[cityKey]
-		if ok && len(city.Aliens) > 0 && len(city.Destination) > 0 {
+		if ok && city.AlienOut > uint(0) && len(city.Destination) > 0 {
 			noMove = false
-
-			//singe actor zone
 			nextCityKey := city.DrawDirection(app.rnd)
 
-			alien := city.Aliens[0]
 			if nextCityKey != cityKey {
 				//alien desided to leave city
-				app.alienMap[alien]++
-				app.cityMap[nextCityKey].AlienCome(alien)
-				city.Aliens = nil
+				app.alienMap[city.AlienOut]++
+				app.cityMap[nextCityKey].AlienCome(city.AlienOut)
+				maxStepsForEveryone = maxStepsForEveryone && (app.alienMap[city.AlienOut] > stepsThreshold)
+				city.AlienOut = uint(0)
 			}
-			//end of singe actor zone
-
-			maxStepsForEveryone = maxStepsForEveryone && (app.alienMap[alien] > stepsThreshold)
 		}
 	}
 	return maxStepsForEveryone || noMove
@@ -163,12 +158,18 @@ func (app *AlienInvasionApp) UpdateCities() {
 	for _, cityKey := range app.cityList {
 		city, ok := app.cityMap[cityKey]
 		if ok {
-			if city.IsBattle() {
+			ln := len(city.AliensIn)
+			switch ln {
+			case 0:
+				city.AlienOut = uint(0)
+			case 1:
+				city.AlienOut = city.AliensIn[0]
+				city.AliensIn = nil
+			default:
 				app.logger.Printf("%s has been destroyed by ", cityKey)
-				ln := len(city.Aliens)
 				for i := 0; i < ln; i++ {
-					app.logger.Printf("alien %d", city.Aliens[i])
-					delete(app.alienMap, city.Aliens[i])
+					app.logger.Printf("alien %d", city.AliensIn[i])
+					delete(app.alienMap, city.AliensIn[i])
 					if i == ln-2 {
 						app.logger.Print(" and ")
 					} else if i < ln-1 {
@@ -193,8 +194,8 @@ func (app *AlienInvasionApp) PrintResult() {
 		app.logger.Println("Remaining cities:")
 		for name, city := range app.cityMap {
 			app.logger.Print(name)
-			if len(city.Aliens) > 0 {
-				app.logger.Printf(" aliens: %+q", city.Aliens)
+			if city.AlienOut > uint(0) {
+				app.logger.Printf(" alien: %v", city.AlienOut)
 			}
 			if len(city.Destination) == 0 {
 				app.logger.Print(" LOST")
