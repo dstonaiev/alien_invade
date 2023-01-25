@@ -5,9 +5,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	processor "github.com/dstonaiev/alien_invade/internal"
-	"github.com/dstonaiev/alien_invade/internal/rand"
 )
 
 var (
@@ -21,13 +21,13 @@ func init() {
 	flag.UintVar(&aliensNum, "A", 2, "aliens number")
 	flag.StringVar(&mapFile, "M", "data/map.txt", "file path use as world map")
 	flag.BoolVar(&printEachStep, "S", false, "true - print city map with aliens after each step")
-	flag.StringVar(&logFile, "L", "log.txt", "log file")
+	flag.StringVar(&logFile, "L", "log", "log file")
 	flag.Parse()
 }
 
 func main() {
 	logger := initLog(logFile)
-	app, err := processor.InitApp(logger, mapFile, rand.NewRandomizer())
+	app, err := processor.InitApp(logger, mapFile)
 	if err != nil {
 		log.Panicf("provided map file is corrupted, errors: %v", err)
 	}
@@ -72,18 +72,17 @@ func main() {
 	}
 }
 
-func initLog(logFile string) *log.Logger {
-	absPath, err := filepath.Abs(mapFile)
+func initLog(logPath string) *log.Logger {
+	absPath, err := filepath.Abs(logPath + "/log" + time.Now().Format(time.RFC3339) + ".log")
 	log.Printf("Absolute path to map file: %s\n", absPath)
 	if err != nil {
 		log.Printf("unable to evaluate file path %s. error %v", logFile, err)
 		return log.New(os.Stdout, "App Log: ", log.LstdFlags)
 	}
-	file, err := os.OpenFile(absPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.Create(absPath)
 	if err != nil {
 		log.Printf("error opening file %s for log dump. error %v", logFile, err)
 		return log.New(os.Stdout, "App Log: ", log.LstdFlags)
 	}
-	defer file.Close()
 	return log.New(file, "App Log: ", log.LstdFlags)
 }

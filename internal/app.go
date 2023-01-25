@@ -4,28 +4,32 @@ import (
 	"bufio"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/dstonaiev/alien_invade/internal/model"
-	"github.com/dstonaiev/alien_invade/internal/rand"
 	merr "github.com/hashicorp/go-multierror"
 )
 
 const (
-	stepsThreshold = 10000
-	dataSeparator  = " "
-	destSeparator  = "="
+	dataSeparator = " "
+	destSeparator = "="
 )
 
-func InitApp(logger *log.Logger, mapFile string, rnd rand.Randomizer) (*AlienInvasionApp, error) {
+var (
+	src = rand.NewSource(time.Now().UnixNano())
+	rnd = rand.New(src)
+)
+
+func InitApp(logger *log.Logger, mapFile string) (*AlienInvasionApp, error) {
 	app := &AlienInvasionApp{
 		logger:   logger,
 		cityMap:  make(map[string]*model.City),
 		cityList: make([]string, 0),
-		alienMap: make(map[uint]int, 0),
-		rnd:      rnd,
+		alienMap: make(map[uint]*model.Alien, 0),
 	}
 	err := app.initMap(mapFile)
 	return app, err
@@ -35,15 +39,14 @@ type AlienInvasionApp struct {
 	logger   *log.Logger
 	cityMap  map[string]*model.City
 	cityList []string
-	alienMap map[uint]int
-	rnd      rand.Randomizer
+	alienMap map[uint]*model.Alien
 }
 
 func (app *AlienInvasionApp) SeedAliens(aliensNum uint) {
 	cityListLen := len(app.cityList)
 	for i := uint(1); i <= aliensNum; i++ {
-		app.alienMap[i] = 0
-		cityKey := app.cityList[app.rnd.GenInt(cityListLen)]
+		app.alienMap[i] = &model.Alien{}
+		cityKey := app.cityList[rnd.Intn(cityListLen)]
 		city := app.cityMap[cityKey]
 		//not needed to check precense as it first step and cityList fully matches to keys in cityMap at this stage (no map entries deleted yet)
 		city.AlienCome(i)
@@ -115,18 +118,17 @@ func (app *AlienInvasionApp) WalkCities() bool {
 	//check if any alien move may happen during walk stage. used to avoid "lost city only" trap
 	noMove := true
 
-	for _, cityKey := range app.cityList {
-		city, ok := app.cityMap[cityKey]
-		if ok && city.AlienOut > uint(0) && len(city.Destination) > 0 {
+	for alKey, alObj := range app.alienMap {
+		city, ok := app.cityMap[alObj.City]
+		if ok && len(city.Destination) > 0 {
 			noMove = false
-			nextCityKey := city.DrawDirection(app.rnd)
+			nextCityKey := city.DrawDirection()
 
-			if nextCityKey != cityKey {
+			if nextCityKey != alObj.City {
 				//alien desided to leave city
-				app.alienMap[city.AlienOut]++
-				app.cityMap[nextCityKey].AlienCome(city.AlienOut)
-				maxStepsForEveryone = maxStepsForEveryone && (app.alienMap[city.AlienOut] > stepsThreshold)
-				city.AlienOut = uint(0)
+				alObj.Move(nextCityKey)
+				app.cityMap[nextCityKey].AlienCome(alKey)
+				maxStepsForEveryone = maxStepsForEveryone && (alObj.ExceedThreshold())
 			}
 		}
 	}
@@ -161,22 +163,22 @@ func (app *AlienInvasionApp) UpdateCities() {
 			ln := len(city.AliensIn)
 			switch ln {
 			case 0:
-				city.AlienOut = uint(0)
 			case 1:
-				city.AlienOut = city.AliensIn[0]
+				app.alienMap[city.AliensIn[0]].City = city.Name
 				city.AliensIn = nil
 			default:
-				app.logger.Printf("%s has been destroyed by ", cityKey)
+				builder := strings.Builder{}
+				builder.WriteString(fmt.Sprintf("%s has been destroyed by ", cityKey))
 				for i := 0; i < ln; i++ {
-					app.logger.Printf("alien %d", city.AliensIn[i])
+					builder.WriteString(fmt.Sprintf("alien %d", city.AliensIn[i]))
 					delete(app.alienMap, city.AliensIn[i])
 					if i == ln-2 {
-						app.logger.Print(" and ")
+						builder.WriteString(" and ")
 					} else if i < ln-1 {
-						app.logger.Print(", ")
+						builder.WriteString(", ")
 					}
 				}
-				app.logger.Println()
+				app.logger.Println(builder.String())
 
 				for dest, neighCity := range city.Destination {
 					delete(app.cityMap[neighCity].Destination, dest.GetOppos())
@@ -193,14 +195,17 @@ func (app *AlienInvasionApp) PrintResult() {
 	} else {
 		app.logger.Println("Remaining cities:")
 		for name, city := range app.cityMap {
-			app.logger.Print(name)
-			if city.AlienOut > uint(0) {
-				app.logger.Printf(" alien: %v", city.AlienOut)
-			}
 			if len(city.Destination) == 0 {
-				app.logger.Print(" LOST")
+				app.logger.Print(name + " <LOST>")
+			} else {
+				app.logger.Print(name)
 			}
-			app.logger.Println()
+		}
+		if len(app.alienMap) > 0 {
+			app.logger.Println("Remaining aliens:")
+			for key, val := range app.alienMap {
+				app.logger.Printf("alien %v rest in city %s\n", key, val.City)
+			}
 		}
 	}
 }
