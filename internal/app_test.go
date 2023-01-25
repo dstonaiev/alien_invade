@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"log"
 	"os"
+	"path/filepath"
 	"testing"
 
 	mock "github.com/dstonaiev/alien_invade/test/mock"
@@ -12,9 +13,8 @@ import (
 
 type appSuite struct {
 	suite.Suite
-	logger  *log.Logger
-	app     *AlienInvasionApp
-	workdir string
+	logger *log.Logger
+	app    *AlienInvasionApp
 }
 
 func TestAlienInvasionAppSuite(t *testing.T) {
@@ -23,21 +23,22 @@ func TestAlienInvasionAppSuite(t *testing.T) {
 
 func (suite *appSuite) SetupTest() {
 	suite.logger = log.New(os.Stdout, "testClient", 0)
-	suite.workdir, _ = os.Getwd()
 }
 
 func (suite *appSuite) TestInitAppFileCorrupted() {
-	var err error
-	suite.app, err = InitApp(suite.logger, suite.workdir+"/../test/data/corrupted.txt", mock.InitMockRandomizer())
+	path, err := filepath.Abs("../test/data/corrupted.txt")
+	suite.Require().NoError(err)
 
+	suite.app, err = InitApp(suite.logger, path, mock.InitMockRandomizer())
 	suite.Require().EqualError(err, "1 error occurred:\n\t* failed to parse line 'Bar south=Foo we'. reason: invalid separator = position\n\n")
 }
 
 func (suite *appSuite) TestSeedAliens() {
-	var err error
 	const numOfAliens = 5
-	suite.app, err = InitApp(suite.logger, suite.workdir+"/../test/data/mapOK.txt", mock.InitMockRandomizer())
+	path, err := filepath.Abs("../test/data/mapOK.txt")
+	suite.Require().NoError(err)
 
+	suite.app, err = InitApp(suite.logger, path, mock.InitMockRandomizer())
 	suite.Require().NoError(err)
 
 	suite.app.SeedAliens(uint(numOfAliens))
@@ -45,29 +46,58 @@ func (suite *appSuite) TestSeedAliens() {
 	suite.Require().Len(suite.app.alienMap, numOfAliens)
 	alienCnt := 0
 	for _, city := range suite.app.cityMap {
-		alienCnt += len(city.Aliens)
+		alienCnt += len(city.AliensIn)
 	}
 	suite.Require().Equal(numOfAliens, alienCnt)
 }
 
 func (suite *appSuite) TestWalkCitiesOK() {
-	var err error
-	suite.app, err = InitApp(suite.logger, suite.workdir+"/../test/data/mapOK.txt", mock.InitMockRandomizer())
-
+	path, err := filepath.Abs("../test/data/mapOK.txt")
 	suite.Require().NoError(err)
 
-	suite.app.SeedAliens(uint(10))
+	suite.app, err = InitApp(suite.logger, path, mock.InitMockRandomizer())
+	suite.Require().NoError(err)
+
+	for i := 1; i <= 4; i++ {
+		suite.app.alienMap[uint(i)] = 0
+	}
+
+	suite.app.cityMap["Tanzi"].AlienOut = uint(1)
+	suite.app.cityMap["Alakam"].AlienOut = uint(2)
+	suite.app.cityMap["Pandeva"].AlienOut = uint(3)
+	suite.app.cityMap["Umper"].AlienOut = uint(4)
 
 	//city not found in map
 	shouldStop := suite.app.WalkCities()
 
 	suite.Require().False(shouldStop)
+	suite.Require().Equal(uint(0), suite.app.cityMap["Tanzi"].AlienOut)
+	suite.Require().Equal(uint(0), suite.app.cityMap["Alakam"].AlienOut)
+	suite.Require().Equal(uint(0), suite.app.cityMap["Pandeva"].AlienOut)
+	suite.Require().Equal(uint(0), suite.app.cityMap["Umper"].AlienOut)
+
+	//1st alien moved from Tanzi to Pandeva
+	suite.Require().Len(suite.app.cityMap["Pandeva"].AliensIn, 1)
+	suite.Require().Equal(1, suite.app.cityMap["Pandeva"].AliensIn[0])
+
+	//2nd alien moved from Alakam to Tanzi
+	suite.Require().Len(suite.app.cityMap["Tanzi"].AliensIn, 1)
+	suite.Require().Equal(2, suite.app.cityMap["Tanzi"].AliensIn[0])
+
+	//3rd alien moved from Pandeva to Umper
+	suite.Require().Len(suite.app.cityMap["Umper"].AliensIn, 1)
+	suite.Require().Equal(3, suite.app.cityMap["Umper"].AliensIn[0])
+
+	//4th alien moved from Umper to K'en'hahh
+	suite.Require().Len(suite.app.cityMap["K'en'hahh"].AliensIn, 1)
+	suite.Require().Equal(4, suite.app.cityMap["K'en'hahh"].AliensIn[0])
 }
 
 func (suite *appSuite) TestWalkCitiesIsolatedOnly() {
-	var err error
 	const numOfAliens = 20
-	suite.app, err = InitApp(suite.logger, suite.workdir+"/../test/data/mapIsolated.txt", mock.InitMockRandomizer())
+	path, err := filepath.Abs("../test/data/mapIsolated.txt")
+	suite.Require().NoError(err)
+	suite.app, err = InitApp(suite.logger, path, mock.InitMockRandomizer())
 
 	suite.Require().NoError(err)
 
@@ -81,9 +111,10 @@ func (suite *appSuite) TestWalkCitiesIsolatedOnly() {
 }
 
 func (suite *appSuite) TestWalkCitiesAllCountersExceed() {
-	var err error
 	const numOfAliens = 10
-	suite.app, err = InitApp(suite.logger, suite.workdir+"/../test/data/mapOK.txt", mock.InitMockRandomizer())
+	path, err := filepath.Abs("../test/data/mapOK.txt")
+	suite.Require().NoError(err)
+	suite.app, err = InitApp(suite.logger, path, mock.InitMockRandomizer())
 
 	suite.Require().NoError(err)
 
@@ -101,8 +132,9 @@ func (suite *appSuite) TestWalkCitiesAllCountersExceed() {
 }
 
 func (suite *appSuite) TestValidateCityMapFileOK() {
-	var err error
-	suite.app, err = InitApp(suite.logger, suite.workdir+"/../test/data/mapOK.txt", mock.InitMockRandomizer())
+	path, err := filepath.Abs("../test/data/mapOK.txt")
+	suite.Require().NoError(err)
+	suite.app, err = InitApp(suite.logger, path, mock.InitMockRandomizer())
 
 	suite.Require().NoError(err)
 
@@ -112,8 +144,9 @@ func (suite *appSuite) TestValidateCityMapFileOK() {
 }
 
 func (suite *appSuite) TestValidateCityMapFileIncomplete() {
-	var err error
-	suite.app, err = InitApp(suite.logger, suite.workdir+"/../test/data/mapIncomplete.txt", mock.InitMockRandomizer())
+	path, err := filepath.Abs("../test/data/mapIncomplete.txt")
+	suite.Require().NoError(err)
+	suite.app, err = InitApp(suite.logger, path, mock.InitMockRandomizer())
 
 	suite.Require().NoError(err)
 
@@ -123,13 +156,17 @@ func (suite *appSuite) TestValidateCityMapFileIncomplete() {
 }
 
 func (suite *appSuite) TestUpdateCities() {
-	var err error
 	var buf bytes.Buffer
+	path, err := filepath.Abs("../test/data/mapOK.txt")
+	suite.Require().NoError(err)
 	logger := log.New(&buf, "Client Log: ", log.LstdFlags)
-	suite.app, err = InitApp(logger, suite.workdir+"/../test/data/mapOK.txt", mock.InitMockRandomizer())
+	suite.app, err = InitApp(logger, path, mock.InitMockRandomizer())
 
 	suite.Require().NoError(err)
 
+	for i := 1; i <= 12; i++ {
+		suite.app.alienMap[uint(i)] = 0
+	}
 	suite.app.cityMap["Tanzi"].AlienCome(uint(1))
 	suite.app.cityMap["Tanzi"].AlienCome(uint(5))
 	suite.app.cityMap["Tanzi"].AlienCome(uint(7))
@@ -151,9 +188,35 @@ func (suite *appSuite) TestUpdateCities() {
 
 	suite.app.UpdateCities()
 
+	suite.Require().Len(suite.app.alienMap, 3)
+	_, ok := suite.app.alienMap[1]
+	suite.Require().False(ok)
+	_, ok = suite.app.alienMap[2]
+	suite.Require().True(ok)
+	_, ok = suite.app.alienMap[3]
+	suite.Require().False(ok)
+	_, ok = suite.app.alienMap[4]
+	suite.Require().False(ok)
+	_, ok = suite.app.alienMap[5]
+	suite.Require().False(ok)
+	_, ok = suite.app.alienMap[6]
+	suite.Require().True(ok)
+	_, ok = suite.app.alienMap[7]
+	suite.Require().False(ok)
+	_, ok = suite.app.alienMap[8]
+	suite.Require().False(ok)
+	_, ok = suite.app.alienMap[9]
+	suite.Require().False(ok)
+	_, ok = suite.app.alienMap[10]
+	suite.Require().True(ok)
+	_, ok = suite.app.alienMap[11]
+	suite.Require().False(ok)
+	_, ok = suite.app.alienMap[12]
+	suite.Require().False(ok)
+
 	suite.Require().Len(suite.app.cityMap, 5)
 
-	_, ok := suite.app.cityMap["Kishore"]
+	_, ok = suite.app.cityMap["Kishore"]
 	suite.Require().False(ok)
 
 	_, ok = suite.app.cityMap["Alakam"]
@@ -167,16 +230,13 @@ func (suite *appSuite) TestUpdateCities() {
 
 	c, ok := suite.app.cityMap["K'en'hahh"]
 	suite.Require().True(ok)
-	suite.Require().Len(c.Aliens, 1)
-	suite.Require().Equal(c.Aliens[0], uint(2))
+	suite.Require().Equal(c.AlienOut, uint(2))
 
 	c, ok = suite.app.cityMap["Basap"]
 	suite.Require().True(ok)
-	suite.Require().Len(c.Aliens, 1)
-	suite.Require().Equal(c.Aliens[0], uint(6))
+	suite.Require().Equal(c.AlienOut, uint(6))
 
 	c, ok = suite.app.cityMap["Umper"]
 	suite.Require().True(ok)
-	suite.Require().Len(c.Aliens, 1)
-	suite.Require().Equal(c.Aliens[0], uint(10))
+	suite.Require().Equal(c.AlienOut, uint(10))
 }
