@@ -1,16 +1,23 @@
-# alien_invade
-Test task
+# Summary
+Alien invasion simulator
 
+# Description
+Mad aliens are about to invade the earth and you are tasked with simulating the invasion.
+Given a map containing the names of cities in the non-existent world of X. The map is in the file, with one city per line.
+The city name is first, followed by 1-4 directions (north, south, east, or west). Each one represents a road to another city that lies in that direction.
+
+The aliens (generated according to number given in command line) start out at random places on the map, and wander around randomly, following links. Each iteration, the aliens can travel in any of the directions leading out of a city.
+
+When few aliens end up in the same place, they fight, and int the process kill each other and destroy the city. When a city is destroyed, it is removed from the map, and so are any roads that lead into or out of it.
 
 # Run application
 go run cmd/main.go [flags]
 
 Flags used in application run:
--A - number of generated values, optional, default 2
+-A - number of generated aliens, optional, default 2
 -M - path to map file, default data/map.txt
 -S - true - print city map with aliens after each step, false - at the end only
--L - path to log file
-
+-L - path to log folder
 
 # Q & A
 1) May I assume city path bidirectional, i.e. if city A contains path to B, so city B definitely contains path to A?
@@ -26,4 +33,4 @@ Assumed, everyone will be killed in this case
 Linear approach selected as no much heavy data operations expected in single processing, no much time gain in multithreading, however possible conflicts, "lost" aliens, which leave city and can't come to the next one because it destroyed
 
 5) May alien prefer do not move to another city?
-Assumed, yes, as an option and in case no ways to go
+Assumed, yes, as an option (in this case step counter increased) and in case no ways to go (no step counter increasing)

@@ -123,13 +123,10 @@ func (app *AlienInvasionApp) WalkCities() bool {
 		if ok && len(city.Destination) > 0 {
 			noMove = false
 			nextCityKey := city.DrawDirection()
-
-			if nextCityKey != alObj.City {
-				//alien desided to leave city
-				alObj.Move(nextCityKey)
-				app.cityMap[nextCityKey].AlienCome(alKey)
-				maxStepsForEveryone = maxStepsForEveryone && (alObj.ExceedThreshold())
-			}
+			//one possible destionation is to rest in the same city, however it ccounted as a step
+			alObj.Move(nextCityKey)
+			app.cityMap[nextCityKey].AlienCome(alKey)
+			maxStepsForEveryone = maxStepsForEveryone && (alObj.ExceedThreshold())
 		}
 	}
 	return maxStepsForEveryone || noMove
