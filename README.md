@@ -14,10 +14,10 @@ When few aliens end up in the same place, they fight, and int the process kill e
 go run cmd/main.go [flags]
 
 Flags used in application run:
--A - number of generated aliens, optional, default 2
--M - path to map file, default data/map.txt
--S - true - print city map with aliens after each step, false - at the end only
--L - path to log folder
+  A - number of generated aliens, optional, default 2
+  M - path to map file, default data/map.txt
+  S - true - print city map with aliens after each step, false - at the end only
+  L - path to log folder
 
 # Q & A
 1) May I assume city path bidirectional, i.e. if city A contains path to B, so city B definitely contains path to A?
